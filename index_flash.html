@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Flash Loan Attack (SC07)</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; max-width: 800px; margin: 20px auto; background-color: #f8f9fa; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h1 { color: #2c3e50; text-align: center; }
+        h2 { color: #34495e; border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.2rem; }
+        
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #dee2e6; border-radius: 6px; box-sizing: border-box; font-family: monospace; }
+        
+        button { background: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 10px; transition: 0.2s; }
+        button:hover { background: #2980b9; }
+        
+        button.danger { background: #e74c3c; font-size: 1.1rem; }
+        button.danger:hover { background: #c0392b; }
+        
+        .status { margin-top: 15px; padding: 15px; background: #e8f4f8; border-radius: 6px; color: #2980b9; font-weight: 500; text-align: center; }
+        
+        .balance-row { display: flex; justify-content: space-between; margin: 12px 0; padding-bottom: 8px; border-bottom: 1px dashed #eee; }
+        .amount { font-weight: bold; color: #27ae60; font-family: monospace; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+    <h1>⚡ Demo Tấn công Flash Loan (SC07)</h1>
+
+    <!-- 1. Kết nối -->
+    <div class="card">
+        <button id="connectBtn">🔌 1. Kết nối MetaMask (Mạng Localhost)</button>
+        <div id="walletStatus" class="status">Chưa kết nối</div>
+    </div>
+
+    <!-- 2. Cấu hình -->
+    <div class="card">
+        <h2>📝 2. Cấu hình (Copy từ Terminal)</h2>
+        <input type="text" id="poolAddr" placeholder="Dán địa chỉ FlashLoanPool (Ngân hàng)">
+        <input type="text" id="govAddr" placeholder="Dán địa chỉ VulnerableGovernance (Nạn nhân)">
+        <input type="text" id="attackAddr" placeholder="Dán địa chỉ FlashLoanAttack (Hacker)">
+    </div>
+
+    <!-- 3. Theo dõi tiền -->
+    <div class="card">
+        <h2>💰 3. Trạng thái Tài sản</h2>
+        <div class="balance-row">
+            <span>🏦 Ngân hàng (Pool):</span>
+            <span id="poolBal" class="amount">... ETH</span>
+        </div>
+        <div class="balance-row">
+            <span>🏛️ Quỹ thưởng (Governance):</span>
+            <span id="govBal" class="amount">... ETH</span>
+        </div>
+        <div class="balance-row">
+            <span>😈 Contract Hacker:</span>
+            <span id="attackBal" class="amount">0.0 ETH</span>
+        </div>
+        <button onclick="updateBalances()">🔄 Cập nhật số dư</button>
+    </div>
+
+    <!-- 4. Tấn công -->
+    <div class="card">
+        <h2>☠️ 4. Kịch bản Tấn công</h2>
+        <p>🔒 <b>Điều kiện rút quỹ:</b> Phải có số dư ví > 900 ETH.</p>
+        <p>💡 <b>Chiến thuật:</b> Hacker vay nóng 1000 ETH -> Rút quỹ -> Trả nợ.</p>
+        <button id="attackBtn" class="danger">🚀 THỰC HIỆN FLASH LOAN ATTACK</button>
+    </div>
+
+    <!-- Ethers.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script>
+        let provider, signer;
+
+        // ABI chỉ cần khai báo hàm chúng ta gọi
+        const attackABI = ["function attack() external"];
+
+        function log(msg) {
+            document.getElementById("walletStatus").innerText = msg;
+        }
+
+        async function connect() {
+            if (!window.ethereum) return alert("Cài MetaMask đi bạn!");
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            signer = provider.getSigner();
+            const addr = await signer.getAddress();
+            log("✅ Đã kết nối: " + addr.substring(0,6) + "..." + addr.substring(38));
+        }
+
+        async function updateBalances() {
+            const pAddr = document.getElementById("poolAddr").value.trim();
+            const gAddr = document.getElementById("govAddr").value.trim();
+            const aAddr = document.getElementById("attackAddr").value.trim();
+
+            if(!pAddr || !gAddr) return log("⚠️ Vui lòng nhập địa chỉ contract trước!");
+
+            try {
+                const pBal = await provider.getBalance(pAddr);
+                const gBal = await provider.getBalance(gAddr);
+                const aBal = await provider.getBalance(aAddr);
+
+                document.getElementById("poolBal").innerText = ethers.utils.formatEther(pBal) + " ETH";
+                document.getElementById("govBal").innerText = ethers.utils.formatEther(gBal) + " ETH";
+                document.getElementById("attackBal").innerText = ethers.utils.formatEther(aBal) + " ETH";
+            } catch (e) {
+                log("Lỗi lấy số dư (kiểm tra lại địa chỉ)");
+            }
+        }
+
+        async function attack() {
+            const attackAddr = document.getElementById("attackAddr").value.trim();
+            if (!attackAddr) return alert("Nhập địa chỉ contract hacker!");
+            if (!signer) return alert("Chưa kết nối ví!");
+
+            const attackContract = new ethers.Contract(attackAddr, attackABI, signer);
+            
+            log("⏳ Đang thực hiện Flash Loan...");
+            
+            try {
+                // Gọi hàm attack()
+                const tx = await attackContract.attack();
+                await tx.wait();
+                log("✅ TẤN CÔNG THÀNH CÔNG! Đã rút cạn quỹ.");
+                updateBalances();
+            } catch (err) {
+                console.error(err);
+                log("❌ Thất bại: " + (err.reason || err.message));
+            }
+        }
+
+        document.getElementById("connectBtn").onclick = connect;
+        document.getElementById("attackBtn").onclick = attack;
+    </script>
+</body>
+</html>
