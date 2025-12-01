@@ -1,53 +1,42 @@
-const { ethers } = require("hardhat");
+const hre = require("hardhat");
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const [deployer] = await hre.ethers.getSigners();
   console.log("Dang dung tai khoan deploy:", deployer.address);
 
-  // 1. Deploy Pool (Ngân hàng)
-  const FlashLoanPool = await ethers.getContractFactory("FlashLoanPool");
+  // 1. Deploy Ngân hàng
+  const FlashLoanPool = await hre.ethers.getContractFactory("FlashLoanPool");
   const pool = await FlashLoanPool.deploy();
-  await pool.waitForDeployment(); // Syntax moi
-  const poolAddress = await pool.getAddress();
-  console.log("FlashLoanPool deployed to:", poolAddress);
+  await pool.waitForDeployment();
+  console.log("FlashLoanPool deployed to:", pool.target);
 
-  // Nạp 1000 ETH vào Pool (lấy từ ví deployer)
+  // Vẫn nạp 1000 ETH cho Ngân hàng (Cái này giữ nguyên để có tiền cho vay)
   await deployer.sendTransaction({
-    to: poolAddress,
-    value: ethers.parseEther("1000.0") // Syntax moi: khong co .utils
+    to: pool.target,
+    value: hre.ethers.parseEther("1000.0"),
   });
   console.log("-> Da nap 1000 ETH vao Pool");
 
-  // 2. Deploy Governance (Nạn nhân)
-  const VulnerableGovernance = await ethers.getContractFactory("VulnerableGovernance");
+  // 2. Deploy Nạn nhân (Governance)
+  const VulnerableGovernance = await hre.ethers.getContractFactory("VulnerableGovernance");
   const governance = await VulnerableGovernance.deploy();
   await governance.waitForDeployment();
-  const govAddress = await governance.getAddress();
-  console.log("VulnerableGovernance deployed to:", govAddress);
+  console.log("VulnerableGovernance deployed to:", governance.target);
 
-  // --- THAY ĐỔI SỐ TIỀN MUỐN CƯỚP TẠI ĐÂY ---
-  // Ví dụ: Tăng lên 100 ETH (Thay vì 50 ETH như cũ)
-  await deployer.sendTransaction({
-    to: govAddress,
-    value: ethers.parseEther("100.0") 
-  });
-  console.log("-> Da nap 100 ETH vao Governance (So tien nay se bi cuop)");
+  // --- THAY ĐỔI Ở ĐÂY: KHÔNG NẠP 100 ETH TỰ ĐỘNG NỮA ---
+  // (Chúng ta sẽ nạp bằng tay trên Web)
+  console.log("-> Governance dang rong tui (0 ETH). Hay nap tren web!");
 
   // 3. Deploy Hacker
-  // Lưu ý: Constructor của Hacker nhận vào 2 địa chỉ
-  const FlashLoanAttack = await ethers.getContractFactory("FlashLoanAttack");
-  const attack = await FlashLoanAttack.deploy(poolAddress, govAddress);
+  const FlashLoanAttack = await hre.ethers.getContractFactory("FlashLoanAttack");
+  const attack = await FlashLoanAttack.deploy(pool.target, governance.target);
   await attack.waitForDeployment();
-  const attackAddress = await attack.getAddress();
-  console.log("FlashLoanAttack deployed to:", attackAddress);
+  console.log("FlashLoanAttack deployed to:", attack.target);
 
   console.log("--- Deployment Complete ---");
-  console.log("Hay copy 3 dia chi tren vao file HTML!");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
